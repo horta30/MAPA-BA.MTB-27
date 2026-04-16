@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <!-- SEO PRO -->
+  <title>Mapa MTB — Bosque Abierto | Guardianes del Bosque</title>
+  <meta name="description" content="Mapa interactivo con rutas MTB y navegación GPS. Explora 23 rutas, encuentra puntos de inicio y navega con Google Maps o Waze. Andar es conservar." />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <link rel="canonical" href="https://horta30.github.io/MAPA-ENERO-26/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Mapa MTB — Bosque Abierto | Guardianes del Bosque" />
+  <meta property="og:description" content="Mapa interactivo con rutas MTB y navegación GPS. Andar es conservar." />
+  <meta property="og:url" content="https://horta30.github.io/MAPA-ENERO-26/" />
+  <meta property="og:image" content="https://horta30.github.io/MAPA-ENERO-26/og-map.jpg" />
+  <meta property="og:locale" content="es_CL" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Mapa MTB — Bosque Abierto | Guardianes del Bosque" />
+  <meta name="twitter:description" content="Mapa interactivo con rutas MTB y navegación GPS. Andar es conservar." />
+  <meta name="twitter:image" content="https://horta30.github.io/MAPA-ENERO-26/og-map.jpg" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Mapa MTB — Bosque Abierto | Guardianes del Bosque",
+    "url": "https://horta30.github.io/MAPA-ENERO-26/",
+    "description": "Mapa interactivo con rutas MTB y navegación GPS. Explora 23 rutas, encuentra puntos de inicio y navega con Google Maps o Waze. Andar es conservar.",
+    "inLanguage": "es-CL"
+  }
+  </script>
+
+  <meta name="keywords" content="MTB, mountain bike, Arauco, Chile, senderos, trails, XC, DH, ciclismo, bosque abierto, GPS, Strava" />
+
+  <!-- MapLibre GL JS -->
+  <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+
+  <!-- JSZip para leer archivos KMZ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a1a">
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Preload fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+  <div id="app">
+    <!-- Mapa -->
+    <div id="map" role="application" aria-label="Mapa interactivo de senderos MTB"></div>
+
+    <!-- Botón flotante móvil -->
+    <button 
+      id="mobile-menu-trigger" 
+      class="mobile-menu-trigger"
+      aria-label="Abrir menú de rutas"
+    >
+      <span class="menu-icon">☰</span>
+      <span class="menu-text">Ver Rutas MTB</span>
+      <span class="menu-badge">25</span>
+    </button>
+    
+    <!-- Hint para desplegar menú -->
+    <div id="menu-hint" class="menu-hint">
+      👇 ¡Despliega el menú de pistas!
+    </div>
+
+    <!-- Botón flotante de compartir general -->
+    <button 
+      id="share-general-btn" 
+      class="share-general-btn"
+      aria-label="Compartir mapa en redes sociales"
+      title="Compartir mapa"
+    >
+      <span class="share-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+          <polyline points="16 6 12 2 8 6"/>
+          <line x1="12" y1="2" x2="12" y2="15"/>
+        </svg>
+      </span>
+    </button>
+
+    <!-- Menú de compartir general -->
+    <div id="share-general-menu" class="share-menu hidden">
+      <div class="share-menu-header">Compartir Mapa</div>
+      <button class="share-option" data-platform="whatsapp">
+        <span class="share-platform-icon">💬</span> WhatsApp
+      </button>
+      <button class="share-option" data-platform="instagram">
+        <span class="share-platform-icon">📷</span> Instagram
+      </button>
+      <button class="share-option" data-platform="twitter">
+        <span class="share-platform-icon">✕</span> X
+      </button>
+      <button class="share-option" data-platform="copy">
+        <span class="share-platform-icon">🔗</span> Copiar Link
+      </button>
+    </div>
+
+    <!-- Panel Lateral -->
+    <aside id="panel" class="panel minimized" role="complementary" aria-label="Panel de información de rutas">
+      <button 
+        id="panel-toggle" 
+        class="panel-toggle" 
+        aria-label="Minimizar o expandir panel"
+        aria-expanded="false"
+      >
+        Rutas MTB
+      </button>
+
+      <div class="panel-inner">
+        <!-- Header -->
+        <header class="panel-header">
+          <h1>Bosque Abierto MTB</h1>
+          <p id="ruta-count" class="panel-subtitle" role="status" aria-live="polite">
+            Cargando rutas...
+          </p>
+        </header>
+
+        <!-- Leyenda mínima en línea -->
+        <div class="legend-inline">
+          <span class="legend-item-inline"><span class="legend-icon xc">■</span> XC</span>
+          <span class="legend-separator">/</span>
+          <span class="legend-item-inline"><span class="legend-icon dh">◆◆</span> DH</span>
+          <span class="legend-separator">/</span>
+          <span class="legend-item-inline"><span class="legend-icon bikepark">●</span> BIKE PARK</span>
+        </div>
+
+        <!-- Lista de Rutas -->
+        <section 
+          id="rutas-list" 
+          class="rutas-list" 
+          role="list" 
+          aria-label="Lista de rutas disponibles"
+        >
+        </section>
+      </div>
+    </aside>
+
+    <!-- Botón Flotante de Enfoque -->
+    <button 
+      id="focus-toggle" 
+      class="focus-toggle hidden" 
+      aria-label="Alternar vista de ruta enfocada"
+    >
+      <span aria-hidden="true">🔍</span>
+      Ver solo esta ruta
+    </button>
+
+    <!-- Welcome overlay móvil -->
+    <div id="welcome-overlay" class="welcome-overlay">
+      <div class="welcome-content">
+        <h2>🚵 Explora el Bosque Abierto</h2>
+        <p>Toca los puntos verdes para ver cada ruta y navegar hasta ella con Google Maps o Waze</p>
+        <button id="welcome-close" class="welcome-close">Comenzar</button>
+      </div>
+    </div>
+
+    <!-- Hint flotante de interacción -->
+    <div id="interaction-hint" class="interaction-hint">
+      <span class="hint-icon">👆</span>
+      <span class="hint-text">Haz click en cualquier punto verde</span>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data/trails.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/MAPA-ENERO-26/service-worker.js')
+          .then(reg => console.log('[SW] Registrado:', reg.scope))
+          .catch(err => console.log('[SW] Error:', err));
+      });
+    }
+  </script>
+</body>
+</html>
