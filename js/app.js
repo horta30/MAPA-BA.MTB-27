@@ -262,6 +262,7 @@ function initStaticPins() {
         id: trail.id,
         nombre: trail.name,
         type: trail.type,
+        pinColor: trail.type === 'XC' ? '#00BCD4' : trail.type === 'DH' ? '#FF5722' : '#4CAF50',
         disciplina: trail.type,
         club: trail.club,
         dificultad: trail.difficulty,
@@ -307,7 +308,7 @@ function initStaticPins() {
     source: 'trail-pins',
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 8, 5, 12, 6, 16, 8],
-      'circle-color': '#00e5a0',
+      'circle-color': ['get', 'pinColor'],
       'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff'
     }
@@ -447,6 +448,7 @@ function updatePinsWithRealCoords() {
         id: trail.id,
         nombre: trail.name,
         type: trail.type,
+        pinColor: trail.type === 'XC' ? '#00BCD4' : trail.type === 'DH' ? '#FF5722' : '#4CAF50',
         disciplina: trail.type,
         club: trail.club,
         dificultad: trail.difficulty,
