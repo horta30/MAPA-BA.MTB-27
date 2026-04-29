@@ -676,14 +676,7 @@ function addTrailLayers() {
       source: 'trails',
       paint: {
         'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 10, 2.5, 12, 3.5, 16, 5],
-        'line-color': [
-          'case',
-          ['==', ['get', 'dificultad'], 'negro'], '#18181b',
-          ['==', ['get', 'dificultad'], 'azul'], '#3b82f6',
-          ['==', ['get', 'type'], 'BIKE PARK'], '#22c55e',
-          ['==', ['get', 'type'], 'PARQUE'], '#22c55e',
-          '#22c55e'
-        ],
+       'line-color': ['coalesce', ['get', 'lineColor'], '#22c55e'],
         'line-opacity': 1
       },
       layout: { 'line-cap': 'round', 'line-join': 'round' }
@@ -1095,6 +1088,8 @@ function getFeaturesForTrail(trailId) {
     const cached = trailCache.get(trailId) || [];
     cached.forEach(f => {
       if (f && f.properties) f.properties.id = trailId;
+      const trailMeta = TRAILS.find(t => t.id === trailId);
+if (trailMeta) f.properties.lineColor = trailMeta.type === 'XC' ? '#00BCD4' : trailMeta.type === 'DH' ? '#FF5722' : '#4CAF50';
     });
 
     const existing = new Set(trailsGeoJSON.features);
