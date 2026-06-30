@@ -16,6 +16,7 @@ let showOnlySelected = false;
 let allTrailFeatures = [];
 let trailCache = new Map();
 let isMobile = false;
+let activeFilter = 'ALL';
 
 // V37: Control de carga de rutas
 let routesLoaded = false;
@@ -131,6 +132,7 @@ function initMap() {
     renderRutasList();
     updateHeaderStats();
     setupMapInteractions();
+    handleDeepLink();
     
     map.on('zoomend', checkZoomAndLoadRoutes);
     
@@ -777,6 +779,7 @@ function setupMobileExperience() {
     setTimeout(() => {
       if (!welcomeOverlay.classList.contains('hidden')) {
         welcomeOverlay.classList.add('hidden');
+        localStorage.setItem('welcomeShown', 'true');
       }
     }, 1500);  // VERSION FINAL: 1.5 segundos
   }
@@ -936,20 +939,86 @@ function toggleMobileMenu() {
 // RENDERIZADO Y UI
 // ============================================================================
 
+function renderFilterBar() {
+  if (document.getElementById('filter-bar')) return;
+  const list = document.getElementById('rutas-list');
+  if (!list) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'filter-bar';
+  bar.className = 'filter-bar';
+  bar.innerHTML = `
+    <button class="filter-btn active" data-filter="ALL">Todos</button>
+    <button class="filter-btn xc" data-filter="XC">XC</button>
+    <button class="filter-btn dh" data-filter="DH">DH</button>
+    <button class="filter-btn bikepark" data-filter="BIKE PARK">Bike Park</button>
+  `;
+  list.parentNode.insertBefore(bar, list);
+
+  bar.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.dataset.filter;
+      renderRutasList();
+      applyFilterToMap();
+    });
+  });
+}
+
+function applyFilterToMap() {
+  if (!map || !map.getSource('trail-pins')) return;
+  if (activeFilter === 'ALL') {
+    map.setPaintProperty('trails-pins', 'circle-opacity', 1);
+    map.setPaintProperty('trails-pins', 'circle-stroke-opacity', 1);
+    map.setPaintProperty('trails-pins-halo', 'circle-opacity', 0.3);
+  } else {
+    const match = ['==', ['get', 'type'], activeFilter];
+    map.setPaintProperty('trails-pins', 'circle-opacity', ['case', match, 1, 0.15]);
+    map.setPaintProperty('trails-pins', 'circle-stroke-opacity', ['case', match, 1, 0.2]);
+    map.setPaintProperty('trails-pins-halo', 'circle-opacity', ['case', match, 0.3, 0.03]);
+  }
+}
+
+function handleDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const trailId = params.get('trail');
+  if (!trailId) return;
+  const trail = TRAILS.find(t => t.id === trailId);
+  if (!trail) return;
+
+  const panel = document.getElementById('panel');
+  if (panel) panel.classList.remove('minimized');
+
+  selectTrail(trailId);
+
+  const card = document.querySelector(`.ruta-card[data-id="${trailId}"]`);
+  if (card) {
+    card.classList.remove('collapsed');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (trail.gpx) loadElevationProfile(trail, card);
+  }
+}
+
 function renderRutasList() {
   const list = document.getElementById('rutas-list');
   if (!list) return;
 
+  renderFilterBar();
   list.innerHTML = '';
 
-  // Ordenar norte a sur (latitud descendente: menos negativo → más negativo)
   const sortedTrails = [...TRAILS].sort((a, b) => {
     const latA = a.startCoords ? a.startCoords[1] : 0;
     const latB = b.startCoords ? b.startCoords[1] : 0;
     return latB - latA;
   });
 
-  sortedTrails.forEach(trail => {
+  const filtered = activeFilter === 'ALL'
+    ? sortedTrails
+    : sortedTrails.filter(t => t.type === activeFilter);
+
+  filtered.forEach(trail => {
     const card = createRutaCard(trail);
     list.appendChild(card);
   });
@@ -1042,17 +1111,20 @@ function createRutaCard(trail) {
   // Club solo si existe
   const clubText = trail.club ? `${escapeHtml(trail.club)} · ` : '';
 
+  card.classList.add('collapsed');
+
   card.innerHTML = `
     <div class="ruta-card-header">
       <h3 class="ruta-title">${escapeHtml(trail.name)}</h3>
+      <span class="card-chevron" aria-hidden="true">▾</span>
     </div>
-    
+
     <div class="ruta-card-body">
       <div class="ruta-detail-row">
         <span class="detail-label">${trail.club ? 'Club / Comuna' : 'Ubicación'}</span>
         <span class="detail-value">${clubText}${escapeHtml(trail.location)}</span>
       </div>
-      
+
       <div class="ruta-detail-row">
         <span class="detail-label">Tipo</span>
         <div class="specialty-container">
@@ -1060,22 +1132,31 @@ function createRutaCard(trail) {
           <span class="detail-value specialty-badge specialty-${trail.type.toLowerCase().replace(' ', '-')}">${trail.type}</span>
         </div>
       </div>
-      
+
      ${difficultyRow}
       ${statsRow}
       ${trailsListHTML}
           ${navigationHTML}
+      ${trail.gpx ? '<div class="elevation-profile"></div>' : ''}
     </div>
   `;
 
-  
-  // Click en tarjeta carga rutas + centra
-  card.addEventListener('click', async () => {
-    await loadRoutesIfNeeded();
-    selectTrail(trail.id);
-    centerOnTrail(trail.id);
-    minimizePanelOnMobile();
+  const header = card.querySelector('.ruta-card-header');
+  const body = card.querySelector('.ruta-card-body');
+
+  header.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const isNowCollapsed = card.classList.toggle('collapsed');
+    if (!isNowCollapsed) {
+      await loadRoutesIfNeeded();
+      selectTrail(trail.id);
+      centerOnTrail(trail.id);
+      minimizePanelOnMobile();
+      if (trail.gpx) loadElevationProfile(trail, card);
+    }
   });
+
+  if (body) body.addEventListener('click', (e) => e.stopPropagation());
 
   return card;
 }
@@ -1759,18 +1840,77 @@ function toggleRouteShareMenu(trailId, event) {
  */
 function shareRoute(trailId, platform, event) {
   event.stopPropagation();
-  
-  // Buscar información de la ruta
+
   const trail = TRAILS.find(t => t.id === trailId);
   if (!trail) return;
-  
-  const shareText = `🚵 Ruta ${trail.name} en ${trail.location} - ${trail.distanceKm}km | Tipo: ${trail.type} | Guardianes Del Bosque - Bosque Abierto #AndarEsConservar`;
-  
-  handleShare(platform, shareText, PROJECT_URL);
-  
-  // Cerrar menú
+
+  const baseUrl = window.location.href.split('?')[0];
+  const deepLinkUrl = `${baseUrl}?trail=${trailId}`;
+  const shareText = `🚵 ${trail.name} — ${trail.location} · ${trail.distanceKm}km | ${trail.type} | Bosque Abierto MTB #AndarEsConservar`;
+
+  handleShare(platform, shareText, deepLinkUrl);
+
   const menu = document.getElementById(`share-route-menu-${trailId}`);
-  if (menu) {
-    menu.classList.add('hidden');
+  if (menu) menu.classList.add('hidden');
+}
+
+// ============================================================================
+// PERFIL DE ELEVACIÓN (ítem 8)
+// ============================================================================
+
+async function loadElevationProfile(trail, card) {
+  const container = card.querySelector('.elevation-profile');
+  if (!container || container.dataset.loaded) return;
+  container.dataset.loaded = 'true';
+  container.innerHTML = '<span class="elev-loading">Cargando perfil…</span>';
+
+  try {
+    const res = await fetch(trail.gpx);
+    const text = await res.text();
+    const elevations = parseGPXElevations(text);
+    if (elevations.length < 2) { container.innerHTML = ''; return; }
+    container.innerHTML = renderElevationSVG(elevations);
+  } catch (e) {
+    container.innerHTML = '';
   }
+}
+
+function parseGPXElevations(gpxText) {
+  const matches = gpxText.match(/<ele>([\d.]+)<\/ele>/g) || [];
+  return matches.map(m => parseFloat(m.replace(/<\/?ele>/g, '')));
+}
+
+function renderElevationSVG(elevations) {
+  const maxPts = 200;
+  const step = Math.max(1, Math.floor(elevations.length / maxPts));
+  const pts = elevations.filter((_, i) => i % step === 0);
+
+  const minE = Math.min(...pts), maxE = Math.max(...pts), range = maxE - minE || 1;
+  const W = 280, H = 52, pad = 4;
+  const gradId = 'eg' + Date.now();
+
+  const coords = pts.map((e, i) => {
+    const x = (i / (pts.length - 1)) * W;
+    const y = H - pad - ((e - minE) / range) * (H - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  return `
+    <div class="elev-wrap">
+      <div class="elev-labels">
+        <span>${maxE.toFixed(0)}m</span>
+        <span>${minE.toFixed(0)}m</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" class="elev-svg" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00e5a0" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#00e5a0" stop-opacity="0.03"/>
+          </linearGradient>
+        </defs>
+        <polygon points="${coords} ${W},${H} 0,${H}" fill="url(#${gradId})"/>
+        <polyline points="${coords}" fill="none" stroke="#00e5a0" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  `;
 }
